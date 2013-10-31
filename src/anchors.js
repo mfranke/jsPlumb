@@ -34,9 +34,9 @@
             jsPlumbInstance = params.jsPlumbInstance,
             jpcl = jsPlumb.CurrentLibrary,
             floatingConnections = {},
-            // TODO this functions uses a crude method of determining orientation between two elements.
-            // 'diagonal' should be chosen when the angle of the line between the two centers is around
-            // one of 45, 135, 225 and 315 degrees. maybe +- 15 degrees.
+            //  this functions uses an improved method of determining orientation between two elements.
+            // 'diagonal' is chosen when the angle of the line between the two centers is around
+            // one of 45, 135, 225 and 315 degrees. currently +- 15 degrees.
             // used by AnchorManager.redraw
             calculateOrientation = function(sourceId, targetId, sd, td, sourceAnchor, targetAnchor) {
         
@@ -47,10 +47,7 @@
         
                 var theta = Math.atan2((td.centery - sd.centery) , (td.centerx - sd.centerx)),
                     theta2 = Math.atan2((sd.centery - td.centery) , (sd.centerx - td.centerx)),
-                    h = ((sd.left <= td.left && sd.right >= td.left) || (sd.left <= td.right && sd.right >= td.right) ||
-                        (sd.left <= td.left && sd.right >= td.right) || (td.left <= sd.left && td.right >= sd.right)),
-                    v = ((sd.top <= td.top && sd.bottom >= td.top) || (sd.top <= td.bottom && sd.bottom >= td.bottom) ||
-                        (sd.top <= td.top && sd.bottom >= td.bottom) || (td.top <= sd.top && td.bottom >= sd.bottom)),
+                    
                     possiblyTranslateEdges = function(edges) {
                         // this function checks to see if either anchor is Continuous, and if so, runs the suggested edge
                         // through the anchor: Continuous anchors can say which faces they support, and they get to choose 
@@ -66,26 +63,57 @@
                         orientation:Orientation.DIAGONAL,
                         theta:theta,
                         theta2:theta2
-                    };                        
+                    },
                 
-                if (! (h || v)) {                    
-                    if (td.left > sd.left && td.top > sd.top)
-                        out.a = ["right", "top"];
-                    else if (td.left > sd.left && sd.top > td.top)
-                        out.a = [ "top", "left"];
-                    else if (td.left < sd.left && td.top < sd.top)
-                        out.a = [ "top", "right"];
-                    else if (td.left < sd.left && td.top > sd.top)
-                        out.a = ["left", "top" ];                            
-                }
-                else if (h) {
-                    out.orientation = Orientation.HORIZONTAL;
-                    out.a = sd.top < td.top ? ["bottom", "top"] : ["top", "bottom"];                    
-                }
-                else {
-                    out.orientation = Orientation.VERTICAL;
-                    out.a = sd.left < td.left ? ["right", "left"] : ["left", "right"];
-                }
+                    // we should only need to look at one theta, as they are complements
+				    /* returns true if the first parameter lies between the other two inclusive */
+				    _isIn = function( xTheta, startDeg, endDeg){
+						if(startDeg <= endDeg){ return (startDeg <= xTheta) && (xTheta <= endDeg); }
+						else /* then startDeg > endDeg*/ { return (startDeg >= xTheta) && (xTheta >= endDeg); } 
+				    },
+				    degTh = 180*theta/Math.PI,
+				    degTh2 = 180*theta2/Math.PI,
+				    diagDelta = 15, // variance in degrees from diagonal 45°
+				    delta = 45 - diagDelta; // remaining variance for horizontal/vertical
+			
+				// diagonal top-left
+				if(     _isIn(degTh,  -135 -diagDelta , -135       )){ out.a = ["left"  , "bottom"]; }
+				else if(_isIn(degTh,  -135       , -135 +diagDelta )){ out.a = ["top"   , "right" ]; }
+			
+				// vertical up
+				else if(_isIn(degTh,  -90  -delta , -90		   ) 
+					 || _isIn(degTh,  -90		  , -90  +delta )){ 
+					out.orientation = Orientation.VERTICAL;       out.a = ["top"	  , "bottom"]; 
+				}
+			
+				// diagonal top-right
+				else if(_isIn(degTh,  -45  -diagDelta , -45        )){ out.a = ["top"   , "left"  ]; }
+				else if(_isIn(degTh,  -45        , -45  +diagDelta )){ out.a = ["right" , "bottom"]; }
+		
+				// horizontal right
+				else if(_isIn(degTh,   0   -delta ,   0        ) 
+					 || _isIn(degTh,   0    	  ,   0  +delta )){ 
+					out.orientation = Orientation.HORIZONTAL;     out.a = ["right" , "left"  ]; 
+						}
+			
+				// diagonal bottom-right
+				else if(_isIn(degTh,   45  -diagDelta ,  45        )){ out.a = ["right" , "top"   ]; }
+				else if(_isIn(degTh,   45        ,  45  +diagDelta )){ out.a = ["bottom", "left"  ]; }
+		
+				// vertical down
+				else if(_isIn(degTh,   90  -delta ,  90        ) 
+					 || _isIn(degTh,   90        ,  90  +delta )){ 
+					out.orientation = Orientation.VERTICAL;	   out.a = ["bottom", "top"   ]; 
+				}
+			
+				// diagonal bottom-left
+				else if(_isIn(degTh,  135  -diagDelta , 135        )){ out.a = ["bottom", "right" ]; }
+				else if(_isIn(degTh,  135        , 135  +diagDelta )){ out.a = ["left"  , "top"   ]; }
+		
+				// remainders: horizontal left
+				else /* if(_isIn(degTh,  -180        , -180 +delta ) 
+				        || _isIn(degTh,   180  -delta ,  180       ))*/
+					{ out.orientation = Orientation.HORIZONTAL;   out.a = ["left"  , "right" ]; }
                 
                 out.a = possiblyTranslateEdges(out.a);
                 return out;
